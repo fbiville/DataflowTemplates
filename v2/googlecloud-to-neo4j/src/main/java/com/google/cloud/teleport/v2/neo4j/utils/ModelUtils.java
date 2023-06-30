@@ -15,8 +15,6 @@
  */
 package com.google.cloud.teleport.v2.neo4j.utils;
 
-import com.google.cloud.bigquery.Field;
-import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.teleport.v2.neo4j.model.enums.FragmentType;
 import com.google.cloud.teleport.v2.neo4j.model.enums.RoleType;
 import com.google.cloud.teleport.v2.neo4j.model.enums.SourceType;
@@ -28,8 +26,6 @@ import com.google.cloud.teleport.v2.neo4j.model.job.Source;
 import com.google.cloud.teleport.v2.neo4j.model.job.Target;
 import com.google.cloud.teleport.v2.neo4j.model.job.Transform;
 import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,9 +41,7 @@ import org.slf4j.LoggerFactory;
 /** Utility functions for Beam rows and schema. */
 public class ModelUtils {
   public static final String DEFAULT_STAR_QUERY = "SELECT * FROM PCOLLECTION";
-  private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
   private static final String neoIdentifierDisAllowedCharactersRegex = "[^a-zA-Z0-9_]";
-  private static final String neoIdentifierDisAllowedCharactersRegexIncSpace = "[^a-zA-Z0-9_ ]";
   private static final String nonAlphaCharsRegex = "[^a-zA-Z]";
   private static final Pattern variablePattern = Pattern.compile("(\\$([a-zA-Z0-9_]+))");
   private static final Logger LOG = LoggerFactory.getLogger(ModelUtils.class);
@@ -83,19 +77,6 @@ public class ModelUtils {
     return "";
   }
 
-  public static boolean singleSourceSpec(JobSpec jobSpec) {
-    boolean singleSourceQuery = true;
-    for (Target target : jobSpec.getTargets()) {
-      if (target.isActive()) {
-        boolean targetRequiresRequery = ModelUtils.targetHasTransforms(target);
-        if (targetRequiresRequery) {
-          singleSourceQuery = false;
-        }
-      }
-    }
-    return singleSourceQuery;
-  }
-
   public static boolean targetsHaveTransforms(JobSpec jobSpec, Source source) {
     for (Target target : jobSpec.getTargets()) {
       if (target.isActive()) {
@@ -110,28 +91,6 @@ public class ModelUtils {
     return false;
   }
 
-  public static boolean nodesOnly(JobSpec jobSpec) {
-    for (Target target : jobSpec.getTargets()) {
-      if (target.isActive()) {
-        if (target.getType() == TargetType.edge) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  public static boolean relationshipsOnly(JobSpec jobSpec) {
-    for (Target target : jobSpec.getTargets()) {
-      if (target.isActive()) {
-        if (target.getType() == TargetType.node) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
   public static boolean targetHasTransforms(Target target) {
     boolean requiresRequery = false;
     if (target.getTransform() != null) {
@@ -143,15 +102,6 @@ public class ModelUtils {
       }
     }
     return requiresRequery;
-  }
-
-  public static Set<String> getBqFieldSet(com.google.cloud.bigquery.Schema schema) {
-    Set<String> fieldNameMap = new HashSet<>();
-    FieldList fieldList = schema.getFields();
-    for (Field field : fieldList) {
-      fieldNameMap.add(field.getName());
-    }
-    return fieldNameMap;
   }
 
   public static Set<String> getBeamFieldSet(Schema schema) {
