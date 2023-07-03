@@ -75,7 +75,7 @@ public class CypherGenerator {
                 false,
                 FragmentType.node,
                 Arrays.asList(RoleType.key, RoleType.property),
-                    target))
+                target))
         .append(")");
     return sb.toString();
   }
@@ -111,7 +111,7 @@ public class CypherGenerator {
                 false,
                 FragmentType.source,
                 Arrays.asList(RoleType.key, RoleType.property),
-                    target))
+                target))
         .append(")");
     sb.append(" -[")
         .append(getRelationshipTypePropertiesListFragment("rel", false, target))
@@ -123,7 +123,7 @@ public class CypherGenerator {
                 false,
                 FragmentType.target,
                 Arrays.asList(RoleType.key, RoleType.property),
-                    target))
+                target))
         .append(")");
     String relPropertyMap =
         getPropertiesListCypherFragment(

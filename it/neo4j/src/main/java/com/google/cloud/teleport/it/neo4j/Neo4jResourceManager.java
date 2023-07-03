@@ -22,6 +22,7 @@ import com.google.cloud.teleport.it.testcontainers.TestContainerResourceManager;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.List;
 import java.util.Map;
+import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Session;
@@ -48,7 +49,7 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
 
   // A list of available Neo4j Docker image tags can be found at
   // https://hub.docker.com/_/neo4j/tags
-  private static final String DEFAULT_NEO4J_CONTAINER_TAG = "5";
+  private static final String DEFAULT_NEO4J_CONTAINER_TAG = "5-enterprise";
 
   // 7687 is the default Bolt port that Neo4j is configured to listen on
   private static final int NEO4J_BOLT_PORT = 7687;
@@ -58,13 +59,16 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
   private final String connectionString;
   private final boolean usingStaticDatabase;
 
+  private final String adminPassword;
+
   private Neo4jResourceManager(Neo4jResourceManager.Builder builder) {
     this(
         /* neo4jDriver= */ null,
         new Neo4jContainer<>(
                 DockerImageName.parse(builder.containerImageName)
                     .withTag(builder.containerImageTag))
-            .withoutAuthentication(),
+            .withEnv("NEO4J_ACCEPT_LICENSE_AGREEMENT", "yes")
+            .withAdminPassword(builder.adminPassword),
         builder);
   }
 
@@ -73,12 +77,20 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
       Driver neo4jDriver, Neo4jContainer<?> container, Neo4jResourceManager.Builder builder) {
     super(container, builder);
 
-    this.usingStaticDatabase = builder.databaseName != null;
-    this.databaseName =
-        usingStaticDatabase ? builder.databaseName : generateDatabaseName(builder.testId);
+    this.adminPassword = builder.adminPassword;
     this.connectionString =
         String.format("neo4j://%s:%d", this.getHost(), this.getPort(NEO4J_BOLT_PORT));
-    this.neo4jDriver = neo4jDriver == null ? GraphDatabase.driver(connectionString) : neo4jDriver;
+    this.neo4jDriver =
+        neo4jDriver == null
+            ? GraphDatabase.driver(connectionString, AuthTokens.basic("neo4j", this.adminPassword))
+            : neo4jDriver;
+    this.usingStaticDatabase = builder.databaseName != null;
+    if (usingStaticDatabase) {
+      this.databaseName = builder.databaseName;
+    } else {
+      this.databaseName = generateDatabaseName(builder.testId);
+      createDatabase(databaseName);
+    }
   }
 
   public static Neo4jResourceManager.Builder builder(String testId) {
@@ -97,19 +109,9 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
   public List<Map<String, Object>> run(String query, Map<String, Object> parameters) {
     try (Session session =
         neo4jDriver.session(SessionConfig.builder().withDatabase(databaseName).build())) {
-      return session.run(query, parameters).list(org.neo4j.driver.Record::asMap);
+      return session.run(query, parameters).list(record -> record.asMap());
     } catch (Exception e) {
       throw new Neo4jResourceManagerException(String.format("Error running query %s.", query), e);
-    }
-  }
-
-  public void dropDatabase(String databaseName) {
-    try (Session session =
-        neo4jDriver.session(SessionConfig.builder().withDatabase("system").build())) {
-      session.run(String.format("DROP DATABASE `%s`", databaseName)).consume();
-    } catch (Exception e) {
-      throw new Neo4jResourceManagerException(
-          String.format("Error dropping database %s.", databaseName), e);
     }
   }
 
@@ -157,11 +159,38 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
     LOG.info("Neo4j manager successfully cleaned up.");
   }
 
+  private void createDatabase(String databaseName) {
+    try (Session session =
+        neo4jDriver.session(SessionConfig.builder().withDatabase("system").build())) {
+      session.run("CREATE DATABASE $db", Map.of("db", databaseName)).consume();
+    } catch (Exception e) {
+      throw new Neo4jResourceManagerException(
+          String.format("Error dropping database %s.", databaseName), e);
+    }
+  }
+
+  @VisibleForTesting
+  void dropDatabase(String databaseName) {
+    try (Session session =
+        neo4jDriver.session(SessionConfig.builder().withDatabase("system").build())) {
+      session.run("DROP DATABASE $db", Map.of("db", databaseName)).consume();
+    } catch (Exception e) {
+      throw new Neo4jResourceManagerException(
+          String.format("Error dropping database %s.", databaseName), e);
+    }
+  }
+
+  public String getAdminPassword() {
+    return adminPassword;
+  }
+
   /** Builder for {@link Neo4jResourceManager}. */
   public static final class Builder
       extends TestContainerResourceManager.Builder<Neo4jResourceManager> {
 
     private String databaseName;
+
+    private String adminPassword;
 
     private Builder(String testId) {
       super(testId);
@@ -183,6 +212,11 @@ public class Neo4jResourceManager extends TestContainerResourceManager<Neo4jCont
      */
     public Builder setDatabaseName(String databaseName) {
       this.databaseName = databaseName;
+      return this;
+    }
+
+    public Builder setAdminPassword(String password) {
+      this.adminPassword = password;
       return this;
     }
 
