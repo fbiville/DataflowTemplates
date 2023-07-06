@@ -15,6 +15,7 @@
  */
 package com.google.cloud.teleport.v2.neo4j.database;
 
+import com.google.cloud.teleport.v2.neo4j.model.enums.EdgeNodesMatchMode;
 import com.google.cloud.teleport.v2.neo4j.model.enums.FragmentType;
 import com.google.cloud.teleport.v2.neo4j.model.enums.RoleType;
 import com.google.cloud.teleport.v2.neo4j.model.enums.SaveMode;
@@ -54,15 +55,12 @@ public class CypherGenerator {
       // Verb
       if (target.getSaveMode() == SaveMode.merge) { // merge
         sb.append("UNWIND $" + CONST_ROW_VARIABLE_NAME + " AS row ");
-        // MERGE (variable1:Label1 {nodeProperties1})-[:REL_TYPE]->
-        // (variable2:Label2 {nodeProperties2})
-        // MATCH before MERGE
-        sb.append(" MATCH (")
+        sb.append(String.format(" %s (", egdeNodeMatchMode(target.getEdgeNodesMatchMode())))
             .append(
                 getLabelsPropertiesListCypherFragment(
                     "source", true, FragmentType.source, Arrays.asList(RoleType.key), target))
             .append(")");
-        sb.append(" MATCH (")
+        sb.append(String.format(" %s (", egdeNodeMatchMode(target.getEdgeNodesMatchMode())))
             .append(
                 getLabelsPropertiesListCypherFragment(
                     "target", true, FragmentType.target, Arrays.asList(RoleType.key), target))
@@ -269,5 +267,16 @@ public class CypherGenerator {
                 Arrays.asList(RoleType.key, RoleType.property),
                 target));
     return sb.toString();
+  }
+
+  private static Object egdeNodeMatchMode(EdgeNodesMatchMode mode) {
+    switch (mode) {
+      case match:
+        return "MATCH";
+      case merge:
+        return "MERGE";
+      default:
+        throw new IllegalArgumentException(String.format("Unknown edge node match mode %s", mode));
+    }
   }
 }
