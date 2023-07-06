@@ -18,7 +18,6 @@ package com.google.cloud.teleport.it.neo4j.conditions;
 import com.google.auto.value.AutoValue;
 import com.google.cloud.teleport.it.conditions.ConditionCheck;
 import com.google.cloud.teleport.it.neo4j.Neo4jResourceManager;
-import com.google.cloud.teleport.it.neo4j.conditions.AutoValue_Neo4jQueryCheck.Builder;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
