@@ -291,7 +291,31 @@ public class CypherGenerator {
   private static List<String> getRelationshipIndexAndConstraintsCypherStatements(
       Config config, Target target) {
 
+
     List<String> cyphers = new ArrayList<>();
+    if (target.getEdgeNodesMatchMode() == EdgeNodesMatchMode.merge) {
+      NodeKeyConstraintBuilder sourceNodeIndexBuilder = new NodeKeyConstraintBuilder();
+      NodeKeyConstraintBuilder targetNodeIndexBuilder = new NodeKeyConstraintBuilder();
+      for (Mapping mapping : target.getMappings()) {
+        if (mapping.getFragmentType() != FragmentType.source && mapping.getFragmentType() != FragmentType.target) {
+          continue;
+        }
+        NodeKeyConstraintBuilder builder =
+                mapping.getFragmentType() == FragmentType.source ?
+                        sourceNodeIndexBuilder :
+                        targetNodeIndexBuilder;
+        RoleType role = mapping.getRole();
+        if (role == RoleType.key) {
+          builder.property = mapping.getName();
+        }
+        if (role == RoleType.label) {
+          builder.label = mapping.getName();
+        }
+      }
+
+      cyphers.add(sourceNodeIndexBuilder.build());
+      cyphers.add(targetNodeIndexBuilder.build());
+    }
     // Model node creation statement
     //  "UNWIND $rows AS row CREATE(c:Customer { id : row.id, name: row.name, firstName:
     // row.firstName })
@@ -366,3 +390,17 @@ public class CypherGenerator {
     }
   }
 }
+
+
+class NodeKeyConstraintBuilder {
+  public String label;
+  // TODO: multiple keys?
+  public String property;
+
+  public String build() {
+    String escapedLabel = ModelUtils.makeSpaceSafeValidNeo4jIdentifier(label);
+    String escapedProperty = ModelUtils.makeSpaceSafeValidNeo4jIdentifier(property);
+    return String.format("CREATE CONSTRAINT IF NOT EXISTS FOR (n:%s) REQUIRE n.%s IS NODE KEY", escapedLabel, escapedProperty);
+  }
+}
+

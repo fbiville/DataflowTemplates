@@ -101,6 +101,7 @@ public class TransposedMappingMapper {
       JSONObject sourceObj = edgeMappingsObject.getJSONObject("source");
       FieldNameTuple keyTuple = getFieldAndNameTuple(sourceObj.get("key"));
       Mapping keyMapping = new Mapping(FragmentType.source, RoleType.key, keyTuple);
+      keyMapping.setIndexed(true);
       // List<String> labels = getLabels(sourceObj.getString("label").trim());
       // keyMapping.setLabels(labels);
       mappings.add(keyMapping);
@@ -118,7 +119,7 @@ public class TransposedMappingMapper {
       JSONObject sourceObj = edgeMappingsObject.getJSONObject("target");
       FieldNameTuple keyTuple = getFieldAndNameTuple(sourceObj.get("key"));
       Mapping keyMapping = new Mapping(FragmentType.target, RoleType.key, keyTuple);
-
+      keyMapping.setIndexed(true);
       // List<String> labels = getLabels(sourceObj.getString("label").trim());
       // keyMapping.setLabels(labels);
       mappings.add(keyMapping);

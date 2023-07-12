@@ -38,7 +38,7 @@ public class Mapping implements Serializable {
   private String defaultValue = "";
   private boolean mandatory = false;
   private boolean unique = false;
-  private boolean indexed = true;
+  private boolean indexed = false;
   private FragmentType fragmentType = FragmentType.node;
 
   public Mapping() {}
