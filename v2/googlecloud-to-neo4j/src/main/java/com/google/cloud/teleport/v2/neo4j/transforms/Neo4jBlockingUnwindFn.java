@@ -28,6 +28,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdk.values.TupleTag;
 import org.neo4j.driver.TransactionConfig;
 import org.neo4j.driver.summary.ResultSummary;
 import org.neo4j.importer.v1.targets.TargetType;
@@ -37,6 +38,8 @@ import org.slf4j.LoggerFactory;
 /** Write to Neo4j synchronously, called from inside @Neo4jRowWriterTransform. */
 public class Neo4jBlockingUnwindFn extends DoFn<KV<Integer, Iterable<Row>>, Row> {
 
+  private final TupleTag<Row> outputTag = new TupleTag<>() {};
+  private final TupleTag<CypherWriteFailure> failureTag = new TupleTag<>() {};
   private static final Logger LOG = LoggerFactory.getLogger(Neo4jBlockingUnwindFn.class);
   private final String cypher;
   private final SerializableFunction<Row, Map<String, Object>> parametersFunction;
@@ -82,7 +85,7 @@ public class Neo4jBlockingUnwindFn extends DoFn<KV<Integer, Iterable<Row>>, Row>
 
     Iterable<Row> rows = rowBatch.getValue();
     rows.forEach(row -> parameters.add(parametersFunction.apply(row)));
-    executeCypherUnwindStatement();
+    executeCypherUnwindStatement(context);
   }
 
   @Teardown
@@ -90,7 +93,15 @@ public class Neo4jBlockingUnwindFn extends DoFn<KV<Integer, Iterable<Row>>, Row>
     this.neo4jConnection.close();
   }
 
-  private void executeCypherUnwindStatement() {
+  public TupleTag<Row> getOutputTag() {
+    return outputTag;
+  }
+
+  public TupleTag<CypherWriteFailure> getFailureTag() {
+    return failureTag;
+  }
+
+  private void executeCypherUnwindStatement(ProcessContext context) {
     if (this.parameters.isEmpty()) {
       return;
     }
@@ -127,8 +138,10 @@ public class Neo4jBlockingUnwindFn extends DoFn<KV<Integer, Iterable<Row>>, Row>
                   .build());
       LOG.debug("Batch transaction of {} rows completed: {}", parameters.size(), summary);
     } catch (Exception e) {
-      throw new RuntimeException(
-          "Error writing " + parameters.size() + " rows to Neo4j with Cypher: " + cypher, e);
+      context.output(
+          failureTag,
+          new CypherWriteFailure(
+              e.getMessage(), reportedSourceType, targetType, cypher, parametersMap));
     }
     parameters.clear();
   }

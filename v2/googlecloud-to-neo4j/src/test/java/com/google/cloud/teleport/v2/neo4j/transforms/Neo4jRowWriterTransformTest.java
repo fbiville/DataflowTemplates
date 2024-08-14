@@ -83,7 +83,12 @@ public class Neo4jRowWriterTransformTest {
             new Targets(List.of(target), null, null),
             null);
     var transform =
-        new Neo4jRowWriterTransform(spec, new TargetSequence(), target, () -> connection);
+        new Neo4jRowWriterTransform(
+            spec,
+            new TargetSequence(),
+            target,
+            () -> connection,
+            "gs://example.com/deadletter/bucket");
 
     TestPipeline.create().apply(Create.empty(BeamUtils.textToBeamSchema(header))).apply(transform);
 

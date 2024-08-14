@@ -15,6 +15,8 @@
  */
 package com.google.cloud.teleport.v2.neo4j.transforms;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.teleport.v2.neo4j.database.CypherGenerator;
 import com.google.cloud.teleport.v2.neo4j.database.Neo4jConnection;
 import com.google.cloud.teleport.v2.neo4j.model.connection.ConnectionParams;
@@ -26,12 +28,17 @@ import com.google.cloud.teleport.v2.neo4j.utils.SerializableSupplier;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Locale;
 import java.util.Map;
+import org.apache.beam.sdk.io.TextIO;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.sdk.values.TupleTagList;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.neo4j.driver.TransactionConfig;
 import org.neo4j.importer.v1.Configuration;
@@ -71,18 +78,21 @@ public class Neo4jRowWriterTransform extends PTransform<PCollection<Row>, PColle
   private final Target target;
   private final SerializableSupplier<Neo4jConnection> connectionSupplier;
   private final TargetSequence targetSequence;
+  private final String deadletterBucket;
 
   public Neo4jRowWriterTransform(
       ImportSpecification importSpecification,
       ConnectionParams neoConnection,
       String templateVersion,
       TargetSequence targetSequence,
-      Target target) {
+      Target target,
+      String deadletterBucket) {
     this(
         importSpecification,
         targetSequence,
         target,
-        () -> new Neo4jConnection(neoConnection, templateVersion));
+        () -> new Neo4jConnection(neoConnection, templateVersion),
+        deadletterBucket);
   }
 
   @VisibleForTesting
@@ -90,11 +100,13 @@ public class Neo4jRowWriterTransform extends PTransform<PCollection<Row>, PColle
       ImportSpecification importSpecification,
       TargetSequence targetSequence,
       Target target,
-      SerializableSupplier<Neo4jConnection> connectionSupplier) {
+      SerializableSupplier<Neo4jConnection> connectionSupplier,
+      String deadletterBucket) {
     this.importSpecification = importSpecification;
     this.target = target;
     this.connectionSupplier = connectionSupplier;
     this.targetSequence = targetSequence;
+    this.deadletterBucket = deadletterBucket;
   }
 
   @NonNull
@@ -118,13 +130,39 @@ public class Neo4jRowWriterTransform extends PTransform<PCollection<Row>, PColle
             getRowCastingFunction(),
             connectionSupplier);
 
-    return input
-        .apply("Create KV pairs", CreateKvTransform.of(parallelismFactor(targetType, config)))
-        .apply("Group into batches", GroupIntoBatches.ofSize(batchSize(targetType, config)))
+    TupleTag<Row> outputTag = neo4jUnwindFn.getOutputTag();
+    TupleTag<CypherWriteFailure> failureTag = neo4jUnwindFn.getFailureTag();
+    PCollectionTuple tuple =
+        input
+            .apply("Create KV pairs", CreateKvTransform.of(parallelismFactor(targetType, config)))
+            .apply("Group into batches", GroupIntoBatches.ofSize(batchSize(targetType, config)))
+            .apply(
+                targetSequence.getSequenceNumber(target) + ": Neo4j write " + target.getName(),
+                ParDo.of(neo4jUnwindFn).withOutputTags(outputTag, TupleTagList.of(failureTag)));
+
+    tuple
+        .get(failureTag)
         .apply(
-            targetSequence.getSequenceNumber(target) + ": Neo4j write " + target.getName(),
-            ParDo.of(neo4jUnwindFn))
-        .setRowSchema(input.getSchema());
+            "write to deadletter bucket",
+            ParDo.of(
+                new DoFn<CypherWriteFailure, String>() {
+                  @ProcessElement
+                  public void processElement(ProcessContext context) {
+                    CypherWriteFailure failure = context.element();
+                    if (failure == null) {
+                      return;
+                    }
+                    // POC quality right there
+                      try {
+                          context.output(new ObjectMapper().writeValueAsString(failure));
+                      } catch (JsonProcessingException e) {
+                          throw new RuntimeException(e);
+                      }
+                  }
+                }))
+        .apply(TextIO.write().to(deadletterBucket).withSuffix(".json"));
+
+    return tuple.get(outputTag).setRowSchema(input.getSchema());
   }
 
   private ReportedSourceType determineReportedSourceType() {

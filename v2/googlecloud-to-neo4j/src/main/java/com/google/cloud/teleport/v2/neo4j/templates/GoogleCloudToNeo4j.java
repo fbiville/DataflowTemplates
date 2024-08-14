@@ -352,7 +352,8 @@ public class GoogleCloudToNeo4j {
                         neo4jConnection,
                         templateVersion,
                         targetSequence,
-                        target))
+                        target,
+                        optionsParams.getDeadletterBucket()))
                 .setCoder(preInsertBeamRows.getCoder());
 
         targetRows
@@ -416,7 +417,8 @@ public class GoogleCloudToNeo4j {
                         neo4jConnection,
                         templateVersion,
                         targetSequence,
-                        target))
+                        target,
+                        optionsParams.getDeadletterBucket()))
                 .setCoder(preInsertBeamRows.getCoder());
 
         targetRows
@@ -463,7 +465,8 @@ public class GoogleCloudToNeo4j {
                         neo4jConnection,
                         templateVersion,
                         targetSequence,
-                        target))
+                        target,
+                        optionsParams.getDeadletterBucket()))
                 .setCoder(nullableSourceBeamRows.getCoder());
 
         targetRows

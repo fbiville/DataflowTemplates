@@ -88,4 +88,15 @@ public interface Neo4jFlexTemplateOptions extends CommonTemplateOptions {
   String getInputFilePattern();
 
   void setInputFilePattern(String value);
+
+  @TemplateParameter.GcsReadFile(
+      order = 7,
+      optional = true,
+      description = "Path to Dead Letter Queue Bucket",
+      helpText = "",
+      example = "gs://your-bucket/")
+  @Default.String("")
+  String getDeadLetterBucket();
+
+  void setDeadLetterBucket(String value);
 }

@@ -30,6 +30,7 @@ public class OptionsParams implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(OptionsParams.class);
 
   private final Map<String, String> tokenMap = new HashMap<>();
+  private String deadletterBucket;
 
   @JsonIgnore
   public void overlayTokens(String optionsJsonStr) {
@@ -45,5 +46,13 @@ public class OptionsParams implements Serializable {
 
   public Map<String, String> getTokenMap() {
     return tokenMap;
+  }
+
+  public String getDeadletterBucket() {
+    return deadletterBucket;
+  }
+
+  public void setDeadletterBucket(String deadletterBucket) {
+    this.deadletterBucket = deadletterBucket;
   }
 }

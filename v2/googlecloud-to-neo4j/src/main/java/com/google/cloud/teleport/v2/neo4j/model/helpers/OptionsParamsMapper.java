@@ -23,14 +23,15 @@ import org.apache.commons.lang3.StringUtils;
 public class OptionsParamsMapper {
 
   public static OptionsParams fromPipelineOptions(Neo4jFlexTemplateOptions pipelineOptions) {
-    OptionsParams optionsParams = new OptionsParams();
+    var options = new OptionsParams();
+    options.setDeadletterBucket(pipelineOptions.getDeadLetterBucket());
     try {
       if (StringUtils.isNotEmpty(pipelineOptions.getOptionsJson())) {
-        optionsParams.overlayTokens(pipelineOptions.getOptionsJson());
+        options.overlayTokens(pipelineOptions.getOptionsJson());
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return optionsParams;
+    return options;
   }
 }
