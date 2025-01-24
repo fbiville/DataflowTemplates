@@ -129,18 +129,19 @@ public final class Neo4jCapabilities implements Serializable {
         } else if (minor == -1) {
           minor = parseMinor(buffer);
         } else {
-          // too many dots
           throw invalidVersion(version);
         }
         buffer = "";
       }
-      if (!buffer.isEmpty()) {
-        if (minor == -1) {
-          minor = parseMinor(buffer);
-        } else {
-          patch = Integer.parseInt(buffer, 10);
-        }
+      if (buffer.isEmpty()) {
+        throw invalidVersion(version);
       }
+      if (minor == -1) {
+        minor = parseMinor(buffer);
+      } else {
+        patch = parsePatch(buffer);
+      }
+
       if (major == -1 || minor == -1) {
         throw invalidVersion(version);
       }
@@ -184,6 +185,16 @@ public final class Neo4jCapabilities implements Serializable {
 
     private static int parseMinor(String buffer) {
       return Integer.parseInt(buffer.replace("-aura", ""), 10);
+    }
+
+    private static int parsePatch(String buffer) {
+      int patch;
+      int end = buffer.indexOf('-');
+      if (end == -1) {
+        end = buffer.length();
+      }
+      patch = Integer.parseInt(buffer.substring(0, end), 10);
+      return patch;
     }
 
     private static int signum(int result) {

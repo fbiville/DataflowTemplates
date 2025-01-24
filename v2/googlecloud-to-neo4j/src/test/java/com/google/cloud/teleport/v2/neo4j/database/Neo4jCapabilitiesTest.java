@@ -31,12 +31,15 @@ public class Neo4jCapabilitiesTest {
     assertThat(Neo4jVersion.of("2025.01")).isEqualTo(new Neo4jVersion(2025, 1));
     assertThat(Neo4jVersion.of("2025.01.0")).isEqualTo(new Neo4jVersion(2025, 1, 0));
     assertThat(Neo4jVersion.of("2025.01-aura")).isEqualTo(new Neo4jVersion(2025, 1));
+    assertThat(Neo4jVersion.of("2025.01.0-21379")).isEqualTo(new Neo4jVersion(2025, 1, 0));
   }
 
   @Test
   public void rejects_invalid_kernel_version() {
     assertThrows(IllegalArgumentException.class, () -> Neo4jVersion.of(""));
     assertThrows(IllegalArgumentException.class, () -> Neo4jVersion.of("5"));
+    assertThrows(IllegalArgumentException.class, () -> Neo4jVersion.of("5."));
+    assertThrows(IllegalArgumentException.class, () -> Neo4jVersion.of("2025.1."));
     assertThrows(IllegalArgumentException.class, () -> Neo4jVersion.of("5.5.3.1"));
     assertThrows(NumberFormatException.class, () -> Neo4jVersion.of(".."));
     assertThrows(NumberFormatException.class, () -> Neo4jVersion.of("5..3"));
